@@ -1,0 +1,28 @@
+Package: cancerSimCraft
+Title: Cancer Evolution Simulation Toolkit
+Version: 0.0.0.9000
+Authors@R: 
+    person("Haijing", "Jin", , "haijingjin0522@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-1459-727X"))
+Description: A package for simulating cancer genome evolution including copy 
+    number changes, structural variations, and whole genome duplications.
+Depends:
+    R (>= 4.0.0)
+Imports:
+    Biostrings,
+    igraph,
+    karyoploteR,
+    dplyr,
+    tidyr,
+    ggplot2,
+    reshape2,
+    IRanges,
+    ComplexHeatmap,
+    parallel
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+
+
+

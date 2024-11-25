@@ -1,0 +1,12 @@
+# R specific
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Mac specific
+.DS_Store
+
+# Archive
+/archived/
