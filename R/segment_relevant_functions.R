@@ -177,7 +177,40 @@ create_initial_seg_list <- function(chr_arm_table) {
 }
 
 
-# Contain functions for segment list simulation and manipulation
+#' Initialize Segment Table for Chromosome Regions
+#'
+#' @description
+#' Creates a table of chromosome segments dividing each chromosome into p (short arm),
+#' c (centromere), and q (long arm) regions. Each segment is initialized with base
+#' state properties including positions, copy numbers, and source information.
+#'
+#' @param chr_lengths A list containing chromosome lengths for a specific haplotype
+#' @param chr_names A vector of chromosome names (e.g., c("chr1", "chr2", "chr3"))
+#' @param centromere_length The length of the centromere region
+#' @param haplotype Character string specifying the haplotype ("maternal" or "paternal")
+#'
+#' @return A data frame containing segment information with columns:
+#' \itemize{
+#'   \item haplotype: Origin of the segment (maternal/paternal)
+#'   \item chrom: Chromosome identifier
+#'   \item ref_start, ref_end: Reference coordinates
+#'   \item ori_start, ori_end: Original coordinates
+#'   \item start, end: Current coordinates
+#'   \item region_name: Region identifier (e.g., chr1p, chr1c, chr1q)
+#'   \item copy_index: Copy number index
+#'   \item seg_id: Unique segment identifier
+#'   \item CN_change: Copy number change status
+#'   \item seg_source_edge: Source edge information
+#'   \item seg_source_event: Source event information
+#' }
+#'
+#' @examples
+#' chr_lengths <- list(maternal = c(100, 200, 300))
+#' chr_names <- c("chr1", "chr2", "chr3")
+#' centromere_length <- 10
+#' seg_table <- initiate_seg_table(chr_lengths, chr_names, centromere_length, "maternal")
+#'
+#' @export
 initiate_seg_table <- function(chr_lengths, chr_names, centromere_length, haplotype) {
   # Initialize an empty list to store segment data frames
   seg_data_frames <- list()
