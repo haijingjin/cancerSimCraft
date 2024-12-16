@@ -25,7 +25,43 @@ process_cnv_events <- function(event_table) {
   return(new_event_table)
 }
 
-# Create manual events
+#' Create a Genomic Event Record
+#'
+#' @description
+#' Creates a record of a copy number change event
+#' Supports CNV and WGD events
+#'
+#' @param haplotype Character string specifying the haplotype ("maternal" or "paternal")
+#' @param parent Character string identifying the parent cell
+#' @param child Character string identifying the child cell
+#' @param region_name Character string specifying the chromosome region (e.g., "chr1p", "chr2q")
+#' @param CN_change Numeric value indicating the copy number change
+#' @param copy_index Integer specifying which copy of the segment is affected
+#' @param event_type Character string describing the type of event
+#'
+#' @return A data frame containing a single row with the event information:
+#' \itemize{
+#'   \item haplotype: Origin of the segment
+#'   \item parent: Parent cell identifier
+#'   \item child: Child cell identifier
+#'   \item region_name: Name of the affected region
+#'   \item CN_change: Copy number change value
+#'   \item copy_index: Index of the affected copy
+#'   \item event_type: Type of genomic event
+#' }
+#'
+#' @examples
+#' event <- create_event(
+#'   haplotype = "maternal",
+#'   parent = "C1",
+#'   child = "C2",
+#'   region_name = "chr1p",
+#'   CN_change = 1,
+#'   copy_index = 1,
+#'   event_type = "CNV"
+#' )
+#'
+#' @export
 create_event <- function(haplotype, parent, child, region_name, CN_change, copy_index, event_type) {
   data.frame(haplotype, parent = parent, child = child, region_name = region_name, CN_change = CN_change, copy_index = copy_index, event_type = event_type)
 }
