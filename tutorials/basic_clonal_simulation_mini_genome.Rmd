@@ -1,0 +1,496 @@
+---
+title: "Basic clonal level simulation on mini genome "
+author: "Haijing Jin"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(message=FALSE)
+devtools::load_all()
+```
+
+This vignette demonstrates how to perform a basic manual simulation of clonal evolution using the cancerSimCraft package. We'll walk through creating a simple phylogenetic tree structure and simulating genomic alterations including copy number variations (CNVs), whole genome duplication (WGD), and mutations (SNVs) across different clones.
+
+The simulation process includes:
+
+1.  Setting up a basic phylogenetic tree structure
+2.  Defining genomic events (CNVs, WGD, SNVs) for different clones
+3.  Simulating the evolution of genome sequences along the tree
+4.  Analyzing and validating the resulting clonal genomes
+5.  Writing clonal genomes into fasta files
+
+This example uses a simplified genome with three chromosomes to illustrate the basic functionality of the package. The concepts demonstrated here can be extended to more complex scenarios with full-genome simulations.
+
+### Simulation Setup
+
+For this tutorial, we use a simplified genome structure consisting of three chromosomes. Each chromosome is divided into three distinct regions: p-arm, centromere, and q-arm. This simplified structure allows us to demonstrate the basic functionality while maintaining clarity.
+
+### Load the virtual genome
+
+Our mini genome simulates a simplified chromosome structure with both maternal and paternal copies (diploid). Each copy contains three chromosomes:
+
+-   Chromosome 1 (chr1): 100 base pairs
+-   Chromosome 2 (chr2): 200 base pairs
+-   Chromosome 3 (chr3): 300 base pairs
+
+Each chromosome is divided into three regions: p-arm, centromere, and q-arm. This simplified structure allows us to demonstrate key genomic alterations including:
+
+-   Copy number variations (CNVs)
+-   Whole genome duplication (WGD)
+-   Single nucleotide variants (SNVs)
+
+While much smaller than a real human genome, this mini genome provides an ideal framework for understanding the basic principles of clonal-level simulation.
+
+```{r}
+data("genome")
+print(genome)
+```
+
+### Create a tree using igraph
+
+We create a simple phylogenetic tree using igraph.
+
+The tree structure represents evolutionary relationships of different tumor subclones.
+
+```{r}
+library(igraph)
+# Create tree using graph_from_literal:
+# - The -+ syntax indicates directed edges (parent -> child)
+# - D is the root node
+# - C1 through C5 are descendant nodes
+tree <- igraph::graph_from_literal(D-+C1-+C2-+C3, C1-+C4-+C5)
+
+# Convert the tree to an edge list table format
+tree_table <- data.frame(as_edgelist(tree))
+colnames(tree_table) <- c("parent", "child")
+```
+
+Print the tree object
+
+```{r}
+# The tree object contains all graph information including:
+# - Nodes (vertices)
+# - Edges (connections between nodes)
+# - Directionality of relationships
+tree
+```
+
+Print the tree table
+
+```{r}
+# The tree_table shows parent-child relationships:
+# - Each row represents one edge in the tree
+# - 'parent' column shows the source node
+# - 'child' column shows the destination node
+tree_table
+```
+
+Plot the tree
+
+```{r}
+plot(tree, 
+     vertex.size = 30,                    # Larger nodes
+     vertex.label.dist = 0,               # Label position (0 = centered)
+     vertex.label.color = "black",        # Label color
+     vertex.color = "lightblue",          # Node color
+     vertex.frame.color = "darkblue")     # Node border color
+```
+
+### Initialize chromosome lengths
+
+The virtual genome structure is as follows:
+
+-   chr1: 100 base pairs
+-   chr2: 200 base pairs
+-   chr3: 300 base pairs
+
+```{r}
+# Define chromosome names 
+chr_names <- c("chr1", "chr2", "chr3")
+
+# Create a list containing lengths for both maternal and paternal chromosomes
+initial_chr_lengths <- list("maternal" = setNames(c(100, 200, 300), chr_names),
+                    "paternal" = setNames(c(100, 200, 300), chr_names))
+
+print(initial_chr_lengths)
+```
+
+### Initialize a segment list
+
+Initialize a segment list for both maternal and paternal chromosomes. Each chromosome is divided into three regions:*p, q, and centromere regions*
+
+```{r}
+# Create segment lists for both haplotypes
+initial_seg_list <- list(
+  # Generate maternal segment table
+  "maternal" = initiate_seg_table(chr_lengths = initial_chr_lengths,
+                                  chr_names = chr_names,
+                                  centromere_length = 10,
+                                  haplotype = "maternal"),
+  # Generate paternal segment table 
+  "paternal" = initiate_seg_table(chr_lengths = initial_chr_lengths,
+                                  chr_names = chr_names,
+                                  centromere_length = 10,
+                                  haplotype = "paternal"))
+```
+
+### Event Generation (Manual)
+
+This section demonstrates how to manually generate genomic events along the branches of our predefined phylogenetic tree. Events include copy number variations (CNVs) and whole-genome doubling (WGD). Each event describes changes between a parent clone and its child clone.
+
+The events occur in the following pattern:
+
+-   From clone D to C1: Multiple CNVs and a whole-genome doubling event
+
+-   From C1 to C2: CNVs in chr3q and chr2p
+
+-   From C2 to C3: CNV in chr1p
+
+-   From C1 to C4 and C4 to C5: CNVs affecting different regions
+
+```{r}
+# Create a list of events using create_event function
+# Each event specifies:
+# - haplotype: maternal or paternal chromosome
+# - parent and child: cells involved
+# - region_name: affected chromosome region
+# - CN_change: magnitude of copy number change
+# - copy_index: which copy is affected
+# - event_type: CNV or WGD
+
+events <- list(
+  create_event(haplotype = "paternal", parent = "D", child = "C1", region_name = "chr1p", CN_change = 2, copy_index = 1, event_type = "CNV"),
+  create_event(haplotype = "paternal", parent = "D", child = "C1", region_name = "chr2q", CN_change = 1, copy_index = 1, event_type = "CNV"),
+  create_event(haplotype = "maternal", parent = "D", child = "C1", region_name = "chr3p", CN_change = 3, copy_index = 1, event_type = "CNV"),
+  create_event(haplotype = "paternal", parent = "D", child = "C1", region_name = "wgd", CN_change = 1, copy_index = 1, event_type = "WGD"),
+  create_event(haplotype = "paternal", parent = "C1", child = "C2", region_name = "chr3q", CN_change = 1, copy_index = 1, event_type = "CNV"),
+  create_event(haplotype = "maternal", parent = "C1", child = "C2", region_name = "chr2p", CN_change = 1, copy_index = 1, event_type = "CNV"),
+  create_event(haplotype = "paternal", parent = "C2", child = "C3", region_name = "chr1p", CN_change = 1, copy_index = 2, event_type = "CNV"),
+  create_event(haplotype = "paternal", parent = "C1", child = "C4", region_name = "chr1p", CN_change = 1, copy_index = 2, event_type = "CNV"),
+  create_event(haplotype = "maternal", parent = "C4", child = "C5", region_name = "chr3p", CN_change = 2, copy_index = 4, event_type = "CNV")
+)
+
+# Combine all events into a single dataframe 
+event_table <- do.call("rbind", events)
+event_table 
+```
+
+### Update Segment Table Using Event Table
+
+The `update_sim_from_event_table` function is a core component for updating the simulation state based on the specified genomic events. It processes events in a depth-first search order along the phylogenetic tree, tracking changes in chromosome segments and lengths at each node. This function:
+
+-   Traverses the tree in depth-first order
+
+-   Updates chromosome segments based on events (CNVs and WGD)
+
+-   Tracks changes in both segment structure and chromosome lengths
+
+-   Maintains the evolutionary history of genomic changes
+
+Here we demonstrate updating the simulation state using our previously defined tree structure and event table:
+
+```{r}
+# Update simulation state using:
+# - tree: Our phylogenetic tree structure
+# - event_table: List of genomic events
+# - initial_seg_list: Initial segment information
+# - initial_chr_lengths: Original chromosome lengths
+sim_updates <- update_sim_from_event_table(tree, 
+                                           event_table = event_table, 
+                                           initial_chr_arm_seg_list = initial_seg_list,
+                                           initial_chr_lengths = initial_chr_lengths)
+```
+
+The `all_node_events` output is structured as a list where:
+
+-   Each list element represents one edge in the tree (e.g., 'D_C1' represents the edge from node D to node C1)
+
+-   For each edge, we get a data frame containing all events that occurred along that edge:
+
+    -   `haplotype`: Indicates whether the event affects paternal or maternal chromosomes
+
+    -   `parent`, `child`: Source and target nodes defining the tree edge
+
+    -   `region_name`: The affected genomic region (chromosome arm or 'wgd' for whole genome duplication)
+
+    -   `CN_change`: Copy number change magnitude
+
+    -   `copy_index`: Index for tracking multiple events on the same region
+
+    -   `event_type`: Type of event (CNV or WGD)
+
+This list structure makes it easy to trace events along specific lineages in the evolutionary tree.
+
+```{r}
+sim_updates$all_node_events$D_C1
+```
+
+The `all_node_segments` output is structured as a nested list where:
+
+-   Each list element represents one node/clone in the tree (e.g., 'D')
+
+-   For each node, segments are organized by haplotype (\$maternal and \$paternal)
+
+-   Each haplotype contains a data frame with detailed segment information:
+
+    -   `haplotype`: Maternal or paternal chromosome copy
+
+    -   `chrom`: Chromosome identifier
+
+    -   `ref_start`, `ref_end`: Reference coordinates
+
+    -   `ori_start`, `ori_end`: Original coordinates
+
+    -   `start`, `end`: Current coordinates
+
+    -   `region_name`: Chromosome arm or centromere (e.g., chr1p, chr1c, chr1q)
+
+    -   `copy_index`: Index for tracking multiple copies of the same region
+
+    -   `seg_id`: Unique segment identifier
+
+    -   `CN_change`: Copy number changes relative to initial state
+
+    -   `seg_source_edge`: Edge where segment originated
+
+    -   `seg_source_event`: Event that created this segment
+
+In this example for node D:
+
+-   Each chromosome is divided into p-arm, centromere (c), and q-arm regions
+
+-   All segments show base state (CN_change = 0) from before_root
+
+This list structure allows tracking of chromosome segment states for each clone, maintaining separate records for maternal and paternal copies.
+
+```{r}
+# Maternal segment of clone D 
+sim_updates$all_node_segments$D$maternal
+```
+
+```{r}
+# Paternal segment of clone D 
+sim_updates$all_node_segments$D$paternal
+```
+
+The `all_node_chr_lengths` output is structured as a nested list where:
+
+-   Each list element represents one node/clone in the tree (e.g., 'D')
+
+-   For each node, chromosome lengths are organized by haplotype (\$maternal and \$paternal)
+
+-   Each haplotype contains a named numeric vector where:
+
+    -   Names indicate chromosomes (chr1, chr2, chr3)
+
+    -   Values represent the total length of each chromosome
+
+This list structure enables tracking of chromosome size changes throughout the evolutionary process, which is particularly important when events like CNVs or WGDs alter chromosome lengths.
+
+```{r}
+sim_updates$all_node_chr_lengths$D
+```
+
+### Simulating Mutation Positions
+
+After simulating chromosome structural changes, we can add single nucleotide mutations to each node in our phylogenetic tree. The number of mutations can be specified for each clone:
+
+```{r}
+# Specify number of mutations for each edge in the tree
+mutation_number <- c(10, 3, 2, 5, 6)  # Number of mutations for each edge
+names(mutation_number) <- names(sim_updates$all_node_events)  # Assign edge names
+
+# Simulate mutation positions using:
+# - tree: Phylogenetic tree structure
+# - chr_lengths: Updated chromosome lengths after CNV/WGD events
+# - mutation_number: Number of mutations per edge 
+clonal_mut_locs <- sim_clonal_mutation_pos(
+    tree = tree, 
+    chr_lengths = sim_updates$all_node_chr_lengths, 
+    mutation_number = mutation_number
+)
+print(clonal_mut_locs[1:5, ])
+```
+
+### Nucleotide Transition Matrix
+
+Define a transition probability matrix that specifies the likelihood of one nucleotide mutating to another. Each row represents a starting nucleotide (A, C, G, T, or N), and each column represents the probability of changing to another nucleotide.
+
+```{r}
+# Create nucleotide transition probability matrix
+# Rows: original nucleotide
+# Columns: mutated nucleotide
+nt_transition_matrix <- matrix(c(
+  # A     C     G     T     N
+  0,    0.1,  0.7,  0.2,  0, # A 
+  0.1,  0,    0.2,  0.7,  0, # C 
+  0.7,  0.2,  0,    0.1,  0, # G 
+  0.2,  0.7,  0.1,  0,    0, # T 
+  0,    0,    0,    0,    1  # N 
+), nrow = 5, byrow = TRUE)
+
+# Assign row and column names
+rownames(nt_transition_matrix) <- colnames(nt_transition_matrix) <- c("A", "C", "G", "T", "N")
+# Print the transition matrix 
+print(nt_transition_matrix)
+```
+
+### Simulating Nucleotide Mutations
+
+After determining mutation positions, we can simulate the specific nucleotide changes at each position using our transition probability matrix. This function applies mutations to the genome sequence based on our previously defined parameters:
+
+```{r}
+# Simulate nucleotide changes for each mutation position using:
+# - genome_sequence: Original genome sequences
+# - seg_list: Updated segment information after structural changes
+# - mutation_info: Previously simulated mutation positions
+# - nt_transition_matrix: Nucleotide transition probabilities
+# - tree:  Phylogenetic tree for ancestor tracking
+clonal_mut_nt <- sim_clonal_mutation_nt(
+    genome_sequence = genome,
+    seg_list = sim_updates$all_node_segments,
+    mutation_info = clonal_mut_locs,
+    nt_transition_matrix = nt_transition_matrix,
+    tree = tree
+)
+
+# Display the resulting mutations
+print(clonal_mut_nt[1:5,])
+```
+
+### Synthesizing a Single Clone's Genome
+
+To generate the genome sequence for a specific clone, we can use the `synth_clone_genome` function. In this example, we'll reconstruct the genome of clone C1, which descended from clone D:
+
+```{r}
+# Specify the target clone and its nearest sequenced ancestor
+target_clone = "C1"    # Clone we want to reconstruct
+nearest_clone = "D"    # Immediate ancestor with known genome
+
+# Synthesize genome for clone C1 by:
+# - Starting with ancestor's genome (D)
+# - Applying accumulated mutations
+# - Incorporating structural changes
+clone_genome <- synth_clone_genome(
+    target_clone = target_clone,         # Clone to reconstruct (C1)
+    nearest_genome = genome,             # Original genome sequence
+    nearest_clone = nearest_clone,       # Ancestor (D)
+    tree = tree,                        # Phylogenetic relationships
+    seg_list = sim_updates$all_node_segments,  # Segment information
+    mut_table = clonal_mut_nt           # Mutation data
+)
+```
+
+### Synthesizing Genomes for All Clones
+
+We can generate genome sequences for the entire phylogenetic tree in one step. The `synth_tree_genomes` function automates this process for all clones:
+
+```{r}
+# Generate genome sequences for all clones in the phylogenetic tree
+tree_genomes <- synth_tree_genomes(
+    tree = tree,   # Phylogenetic tree structure
+    root_genome = genome,   # Original starting genome
+    seg_list = sim_updates$all_node_segments,   # Segment information for all clones
+    mut_table = clonal_mut_nt     # All mutations across the tree
+)
+```
+
+### Validating Chromosome Lengths
+
+After generating genomes for all clones, it's important to verify that the chromosome lengths match our expectations. This validation step ensures the accuracy of our simulation:
+
+```{r}
+# Get all clone names from the phylogenetic tree
+clone_names <- V(tree)$name
+
+# Check chromosome lengths for each clone
+all_chr_length_check <- list() 
+for(clone in clone_names){
+    # Compare actual vs expected chromosome lengths for each clone:
+    # - clone_genome: Synthesized genome sequence
+    # - expected_chr_lengths: Lengths after structural changes
+    all_chr_length_check[[clone]] <- check_genome_chr_length(
+        clone_genome = tree_genomes[[clone]], 
+        expected_chr_lengths = sim_updates$all_node_chr_lengths[[clone]]
+    )
+}
+# Print the chr length check result 
+print(all_chr_length_check$D$maternal$chr1)
+```
+
+### Validating Simulated Mutations
+
+After generating clone genomes, we perform a sanity check to ensure all mutations have been correctly incorporated. This validation process verifies that mutations are properly inherited and implemented in each clone:
+
+```{r}
+# Get mutations specific to each clone from the mutation table
+clone_mutations <- acquire_clone_mutations(
+    mutation_table = clonal_mut_nt, 
+    tree = tree
+)
+
+# Check mutations for each clone (excluding the root clone)
+all_mutation_check <- list() 
+for(clone in clone_names[-1]){
+    # Verify mutations in each clone's genome:
+    # - clone_genome: Synthesized genome sequence
+    # - clone_mutation_table: Expected mutations
+    # - clone_seg_list: Current segment structure
+    all_mutation_check[[clone]] <- check_genome_mutations(
+        clone_genome = tree_genomes[[clone]], 
+        clone_mutation_table = clone_mutations[[clone]], 
+        clone_seg_list = sim_updates$all_node_segments[[clone]]
+    )
+}
+
+# Print the mutation check result 
+print(all_mutation_check$C1$maternal$chr2)
+```
+
+### Validating Loss Events
+
+After generating clone genomes, we verify that genome segments marked as "loss" events are correctly handled. This validation ensures that chromosomal deletions are properly represented in each clone:
+
+```{r}
+# Check loss segments for each clone (excluding the root clone)
+all_loss_segment_check <- list()
+for(clone in clone_names[-1]){
+    # Verify loss events in each clone:
+    # - clone_genome: Synthesized genome sequence
+    # - clone_segments: Current segment information
+    all_loss_segment_check[[clone]] <- check_loss_segments(
+        clone_genome = tree_genomes[[clone]], 
+        clone_segments = sim_updates$all_node_segments[[clone]]
+    )
+}
+```
+
+### Saving Clone Genomes to FASTA Files
+
+After generating and validating all clone genomes, we save them as FASTA files for future use or analysis. Each clone's maternal and paternal genomes are saved separately:
+
+```{r}
+output_dir <- "./output/"
+# Save each clone's genome sequences to FASTA files
+for(clone in clone_names){
+    for(haplotype in c("maternal", "paternal")){
+      
+      writing_genome <- tree_genomes[[clone]][[haplotype]]
+      # Write to FASTA file with naming pattern:
+      # "clone_[clone name]_[haplotype].fa"
+      writeXStringSet(writing_genome, 
+                      paste0(output_dir, "clone_", 
+                             clone, "_", haplotype, ".fa")
+                      )
+      # Clean up to manage memory
+      rm(writing_genome)
+    }
+}
+```
+
+Note about Read Simulation: The generated FASTA files can be used as reference sequences for read simulation using tools like ART, DWGSIM, or other sequencing simulators. However, in this tutorial, we skip the read simulation step as our example genomes are too small to generate meaningful sequencing reads. For realistic read simulation, please refer to our whole genome simulation tutorial, which demonstrates the process with full-size human genomes.
