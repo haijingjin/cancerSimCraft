@@ -276,6 +276,55 @@ get_mutations <- function(cell_info, mutation_info, sampled_cell_idx = NULL, num
 }
 
 
+#' Simulate Nucleotide Changes for Clonal Mutations
+#'
+#' @description
+#' Simulates nucleotide changes for mutations in a clonal evolutionary tree, handling both
+#' regular and recurrent mutations. Takes into account chromosome segment information and
+#' possible loss events.
+#'
+#' @param genome_sequence A nested list containing reference genome sequences:
+#'   \itemize{
+#'     \item First level: haplotypes (maternal/paternal)
+#'     \item Second level: chromosomes
+#'     \item Each chromosome contains nucleotide sequence
+#'   }
+#' @param seg_list A nested list containing segment information for each clone and haplotype,
+#'   including coordinates and copy number changes.
+#' @param mutation_info A data frame containing mutation locations with columns:
+#'   \itemize{
+#'     \item clone - Clone name where mutation occurs
+#'     \item haplotype - Maternal or paternal copy
+#'     \item chrom - Chromosome name
+#'     \item pos - Position on chromosome
+#'   }
+#' @param nt_transition_matrix A 5x5 matrix containing nucleotide transition probabilities
+#' @param tree An igraph object representing the phylogenetic tree structure
+#'
+#' @return An updated mutation_info data frame with additional columns:
+#'   \itemize{
+#'     \item seg_id - Segment identifier where mutation occurs
+#'     \item ref_pos - Position in reference coordinates
+#'     \item original_nt - Original nucleotide
+#'     \item alternative_nt - Mutated nucleotide
+#'   }
+#'
+#' @details
+#' The function processes mutations in two categories:
+#' 1. Regular mutations (first occurrence at a position):
+#'    - Identifies segment containing the mutation
+#'    - Handles lost segments (marked with 'N')
+#'    - Samples alternative nucleotide based on transition matrix
+#' 2. Recurrent mutations (at previously mutated positions):
+#'    - Finds previous mutation in ancestor clones
+#'    - Uses previous alternative as new original nucleotide
+#'    - Samples new alternative based on transition matrix
+#'
+#' @seealso
+#' \code{\link{get_segment_info}}, \code{\link{get_clone_ancestors}}
+#'
+#' @importFrom igraph V
+#' @export
 sim_clonal_mutation_nt <- function(genome_sequence, seg_list, mutation_info, nt_transition_matrix, tree){
   # initialize vectors
   seg_id <- character(nrow(mutation_info))
@@ -336,6 +385,12 @@ sim_clonal_mutation_nt <- function(genome_sequence, seg_list, mutation_info, nt_
     alternative_nts[i] <- sample(colnames(nt_transition_matrix), 1, prob = nt_transition_matrix[original_nts[i], ])
   }
 
+  # TODO (Critical): Thoroughly test and validate recurrent mutation handling
+  # Issues to check:
+  # - Ancestor tracking logic
+  # - Nucleotide change chain in multiple ancestors
+  # - Edge cases with segment losses
+  # - Add specific test cases
   # Handle recurrent mutations
   for (i in which(recurrent_mutations)) {
     # Get the mutation
@@ -395,6 +450,41 @@ sim_clonal_mutation_nt <- function(genome_sequence, seg_list, mutation_info, nt_
 }
 
 
+#' Simulate Random Mutation Positions in a Clonal Tree
+#'
+#' @description
+#' Simulates random mutation positions along chromosomes for each edge in a phylogenetic tree.
+#' Mutations are distributed across chromosomes proportionally to their lengths, and can occur
+#' on either maternal or paternal haplotypes.
+#'
+#' @param tree An igraph object representing the phylogenetic tree structure.
+#' @param chr_lengths A nested list containing chromosome lengths for each clone and haplotype:
+#'   \itemize{
+#'     \item First level: clone names
+#'     \item Second level: haplotypes (maternal/paternal)
+#'     \item Third level: named numeric vector of chromosome lengths
+#'   }
+#' @param mutation_number A named numeric vector specifying the number of mutations to simulate
+#'   for each edge in the tree. Names should be in format "parent_child".
+#'
+#' @return A data frame containing simulated mutation information:
+#'   \itemize{
+#'     \item clone - Name of the clone where mutation occurs
+#'     \item edge_name - Tree edge identifier (parent_child)
+#'     \item haplotype - Maternal or paternal haplotype
+#'     \item chrom - Chromosome where mutation occurs
+#'     \item pos - Position of mutation on the chromosome
+#'   }
+#'
+#' @details
+#' The function processes the tree in depth-first search order, starting from the first tumor
+#' clone (excluding root). For each edge, it simulates the specified number of mutations by:
+#' 1. Randomly selecting a haplotype (maternal/paternal)
+#' 2. Selecting a chromosome with probability proportional to its length
+#' 3. Randomly selecting a position within the chosen chromosome
+#'
+#' @importFrom igraph V degree dfs get.adjlist
+#' @export
 sim_clonal_mutation_pos <- function(tree, chr_lengths, mutation_number) {
   mutation_info <- data.frame(clone = character(),
                               edge_name = character(),

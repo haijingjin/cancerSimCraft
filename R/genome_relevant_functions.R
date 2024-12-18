@@ -207,6 +207,51 @@ synth_clone_genome_for_sc <- function(target_clone, nearest_genome, nearest_clon
   return(target_genome)
 }
 
+#' Synthesize Clone Genome Based on Events and Mutations
+#'
+#' @description
+#' Constructs a clone's genome by applying sequential genomic alterations (CNVs, WGDs)
+#' and mutations (SNVs) starting from a nearest ancestral genome. Processes events along the
+#' evolutionary path between the nearest ancestor and target clone.
+#'
+#' @param target_clone Character. Name of the clone whose genome is to be synthesized.
+#' @param nearest_genome Nested list containing the nearest ancestor's genome sequences:
+#'   \itemize{
+#'     \item First level: haplotypes (maternal/paternal)
+#'     \item Second level: chromosomes with nucleotide sequences
+#'   }
+#' @param nearest_clone Character. Name of the nearest ancestor clone.
+#' @param tree igraph object. Phylogenetic tree structure.
+#' @param seg_list Nested list containing segment information for all clones:
+#'   \itemize{
+#'     \item First level: clone names
+#'     \item Second level: haplotypes
+#'     \item Each haplotype contains segment information (data frame)
+#'   }
+#' @param mut_table Data frame containing mutation information with columns:
+#'   \itemize{
+#'     \item edge_name - Tree edge identifier
+#'     \item other mutation-specific columns required by introduce_snv
+#'   }
+#'
+#' @return A nested list containing the synthesized genome with the same structure
+#'   as nearest_genome, but updated with all genomic changes.
+#'
+#' @details
+#' The function:
+#' 1. Identifies edges between nearest ancestor and target clone
+#' 2. For each edge:
+#'    - Processes segment changes (copy number variations)
+#'    - Handles segment losses (marks with "N")
+#'    - Adds new segments for gains
+#'    - Applies SNVs if present
+#' 3. Maintains separate tracking for maternal and paternal haplotypes
+#'
+#' @seealso
+#' \code{\link{get_edges_between_clones}}, \code{\link{introduce_snv}}
+#'
+#' @importFrom Biostrings subseq
+#' @export
 synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree, seg_list, mut_table){
 
   # Initialize the target genome as a copy of the nearest genome
@@ -342,7 +387,54 @@ insert_mutations <- function(genome, mutations) {
   return(genome)
 }
 
-
+#' Introduce Single Nucleotide Variants into a Genome
+#'
+#' @description
+#' Introduce single nucleotide variants (SNVs) into a genome sequence by
+#' processing mutations grouped by haplotype and chromosome.
+#'
+#' @param genome A nested list containing genome sequences:
+#'   \itemize{
+#'     \item First level: haplotypes (maternal/paternal)
+#'     \item Second level: chromosomes with nucleotide sequences
+#'   }
+#' @param mut_table A data frame containing mutation information with columns:
+#'   \itemize{
+#'     \item haplotype - Maternal or paternal copy
+#'     \item chrom - Chromosome name
+#'     \item pos - Position where mutation occurs
+#'     \item alternative_nt - Alternative nucleotide to introduce
+#'   }
+#'
+#' @return A list containing:
+#'   \itemize{
+#'     \item genome - Modified genome with introduced SNVs
+#'   }
+#'
+#' @details
+#' The function:
+#' 1. Groups mutations by haplotype and chromosome for efficient processing
+#' 2. Processes each group of mutations in a vectorized operation
+#' 3. Maintains the original genome structure while updating sequences
+#'
+#' Note: Uses vectorized operations through replaceLetterAt for efficient mutation introduction
+#'
+#' @seealso
+#' \code{\link{replaceLetterAt}}
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Example mutation table
+#' mutations <- data.frame(
+#'   haplotype = "maternal",
+#'   chrom = "chr1",
+#'   pos = 100,
+#'   alternative_nt = "A"
+#' )
+#' modified <- introduce_snv(genome, mutations)
+#' }
 introduce_snv <- function(genome, mut_table) {
   # Initialize a copy of the genome to store the modified sequences
   modified_genome <- genome
@@ -368,6 +460,48 @@ introduce_snv <- function(genome, mut_table) {
   return(list("genome" = modified_genome))
 }
 
+
+#' Synthesize Genomes for All Clones in Phylogenetic Tree
+#'
+#' @description
+#' Generates complete genome sequences for all clones in a phylogenetic tree, starting from
+#' the root genome and applying sequential genomic alterations following the tree structure.
+#'
+#' @param tree An igraph object representing the phylogenetic tree structure
+#' @param root_genome A nested list containing the initial genome sequences:
+#'   \itemize{
+#'     \item First level: haplotypes (maternal/paternal)
+#'     \item Second level: chromosomes with nucleotide sequences
+#'   }
+#' @param seg_list A nested list containing segment information for all clones:
+#'   \itemize{
+#'     \item First level: clone names
+#'     \item Second level: haplotypes
+#'     \item Each haplotype contains segment information (data frame)
+#'   }
+#' @param mut_table A data frame containing mutation information for all clones
+#'
+#' @return A list where:
+#'   \itemize{
+#'     \item Names are clone names from the tree
+#'     \item Values are genome sequences for each clone
+#'   }
+#'
+#' @details
+#' The function:
+#' 1. Identifies the root node of the tree
+#' 2. Processes nodes in depth-first search order
+#' 3. For each node:
+#'    - Identifies its parent node
+#'    - Synthesizes its genome based on parent's genome
+#'    - Applies all genomic changes along the branch
+#' 4. Tracks progress with print statements
+#'
+#' @seealso
+#' \code{\link{synth_clone_genome}}, \code{\link{dfs}}
+#'
+#' @importFrom igraph V degree dfs get.adjlist
+#' @export
 synth_tree_genomes <- function(tree, root_genome, seg_list, mut_table) {
 
   root_name <- names(V(tree))[degree(tree, mode = "in") == 0]
@@ -393,6 +527,37 @@ synth_tree_genomes <- function(tree, root_genome, seg_list, mut_table) {
   return(all_node_genomes)
 }
 
+#' Get Edge Names Between Two Nodes in Tree
+#'
+#' @description
+#' Finds and returns the names of all edges in the path between two nodes in a phylogenetic tree,
+#' formatted as "parent_child" strings.
+#'
+#' @param tree An igraph object representing the phylogenetic tree structure
+#' @param upper_node Character. Name of the starting (ancestor) node
+#' @param lower_node Character. Name of the ending (descendant) node
+#'
+#' @return A character vector containing edge names in the format "parent_child"
+#'   for all edges in the path from upper_node to lower_node
+#'
+#' @details
+#' The function:
+#' 1. Finds the shortest path between the two nodes
+#' 2. Identifies all edges along this path
+#' 3. Formats edge names as "parent_child"
+#'
+#' Note: Assumes that the nodes are connected and upper_node is an ancestor of lower_node
+#' in the tree structure.
+#'
+#' @importFrom igraph shortest_paths E ends
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # For a tree with path A -> B -> C
+#' edges <- get_edges_between_clones(tree, "A", "C")
+#' # Returns: c("A_B", "B_C")
+#' }
 get_edges_between_clones <- function(tree, upper_node, lower_node) {
   # Retrieve path from upper_node to lower_node
   path_between_nodes <- shortest_paths(tree, from = upper_node, to = lower_node)$vpath[[1]]

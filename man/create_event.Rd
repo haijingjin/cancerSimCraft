@@ -43,6 +43,7 @@ A data frame containing a single row with the event information:
 }
 \description{
 Creates a record of a copy number change event
+Supports CNV and WGD events
 }
 \examples{
 event <- create_event(
