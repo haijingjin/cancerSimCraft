@@ -5,8 +5,16 @@
 .Ruserdata
 *.Rproj
 
+# Exclude everything in tutorials except HTML files in root
+tutorials/*
+!tutorials/*.html
+!tutorials/tutorials_data_release_v1.zip
+
 # Mac specific
 .DS_Store
 
 # Archive
 /archived/
+
+# Doc 
+/docs/

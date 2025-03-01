@@ -2,7 +2,7 @@
 % Please edit documentation in R/core_update_functions.R
 \name{update_sim_from_event_table}
 \alias{update_sim_from_event_table}
-\title{Update Simulation State Based on Event Table}
+\title{Update Simulation from Event Table}
 \usage{
 update_sim_from_event_table(
   tree,
@@ -39,13 +39,10 @@ A list containing:
 }
 }
 \description{
-Updates the simulation state by processing events (WGD, CNV, sub_CNV) along a phylogenetic tree structure.
+This function updates a simulation based on an event table, which contains information about
+genomic events such as Whole Genome Duplications (WGD), Copy Number Variations (CNV), and sub-CNVs.
+It traverses a tree structure and applies the events to the segments and chromosome lengths accordingly.
 Events are processed in depth-first search order from root to leaves.
-}
-\details{
-The function traverses the tree in depth-first search order, processing events sequentially.
-For each edge in the tree, it applies the corresponding events (WGD, CNV, sub_CNV)
-and updates the chromosome segments and lengths accordingly.
 }
 \seealso{
 \code{\link{update_wgd_seg}}, \code{\link{update_cnv_seg}}, \code{\link{update_sub_seg}}

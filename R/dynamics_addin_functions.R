@@ -1,5 +1,50 @@
 # dynamics_addin_functions.R
 
+#' Prepare Cell Lineage Data for Tree Visualization
+#'
+#' @description
+#' Transforms cell lineage information into a format suitable for phylogenetic tree visualization
+#' by creating edge and node tables with appropriate attributes.
+#'
+#' @param cell_info Data frame containing cell lineage information with columns:
+#'        clone, parent, birth_time, death_time, cell_index
+#'
+#' @return A list containing two data frames:
+#' \itemize{
+#'   \item edges: Data frame with columns parent, child, edge_label, edge_length, and child_clone
+#'   \item nodes: Data frame with columns name, clone_type, and death_time
+#' }
+#'
+#' @details
+#' This function processes cell lineage data to create a tree structure representation:
+#'
+#' 1. Replaces NA parents with "root_node" to establish a common ancestor
+#' 2. Assigns theoretical death times to living cells (cells with NA death_time)
+#' 3. Calculates edge lengths as the time between birth and death of each cell
+#' 4. Creates an edge table that defines connections between cells
+#' 5. Creates a node table with information about each cell and the root
+#'
+#' The resulting data structure is compatible with tree visualization packages
+#' such as ggtree and can be used to create cell lineage visualizations.
+#'
+#' @examples
+#' # Example usage:
+#' cell_info <- data.frame(
+#'   parent = c(NA, 1, 1, 2),
+#'   cell_index = c(1, 2, 3, 4),
+#'   birth_time = c(0, 1, 1, 2),
+#'   death_time = c(5, 3, NA, 4),
+#'   clone = c("Clone1", "Clone1", "Clone2", "Clone2")
+#' )
+#'
+#' tree_data <- prepare_tree_data(cell_info)
+#' print(tree_data$edges)  # Edge table
+#' print(tree_data$nodes)  # Node table
+#'
+#' @seealso
+#' \code{\link{simulate_sc_dynamics}}, \code{\link{plot_cell_tree}}
+#'
+#' @export
 prepare_tree_data <- function(cell_info) {
 
   # Change NA parents to "root_node"
@@ -54,7 +99,49 @@ create_sc_tree_plot_archived <- function(dynamic_sim_ob, clone_colors, title = "
   return(tree_plot)  # Return the plot object (if you want to display it)
 }
 
-# Function to create and save tree plot from simulation results
+#' Create a Cell Lineage Tree Visualization
+#'
+#' @description
+#' Creates a dendrogram visualization of cell lineage data from simulation results,
+#' showing the relationships between cells and their clonal evolution over time.
+#'
+#' @param dynamic_sim_ob List object returned by simulate_sc_dynamics function
+#' @param clone_colors Named vector of colors where names match clone types in the simulation
+#' @param title Character string for the plot title, defaults to "SC Dynamics Dendrogram"
+#'
+#' @return A ggraph plot object displaying the cell lineage tree with customized styling
+#'
+#' @details
+#' This function creates a dendrogram visualization of cell lineage data where:
+#'
+#' 1. The vertical axis represents time
+#' 2. Edges represent cells' lifespans
+#' 3. Edge colors indicate the clone type of each cell
+#' 4. Branch lengths correspond to cell lifetimes
+#'
+#' The function first prepares the cell information data using the prepare_tree_data function,
+#' then creates a graph object and finally generates a dendrogram visualization using ggraph.
+#' The resulting plot has publication-ready styling with customized title, legend, and axis labels.
+#'
+#' @examples
+#' # Define colors for each clone type
+#' clone_colors <- c(A = "blue", B = "red")
+#'
+#' # Create and display the lineage tree
+#' tree_plot <- create_sc_tree_plot(dynamic_sim_ob, clone_colors, "Cell Lineage Evolution")
+#' print(tree_plot)
+#'
+#' # Save the plot
+#' ggsave("cell_lineage_tree.png", tree_plot, width = 10, height = 8)
+#'
+#' @seealso
+#' \code{\link{simulate_sc_dynamics}}, \code{\link{prepare_tree_data}}
+#'
+#' @import ggraph
+#' @import igraph
+#' @import ggplot2
+#'
+#' @export
 create_sc_tree_plot <- function(dynamic_sim_ob, clone_colors, title = "SC Dynamics Dendrogram") {
   # Extract all cell info from the simulation result
   all_cell_info <- dynamic_sim_ob$cell_info

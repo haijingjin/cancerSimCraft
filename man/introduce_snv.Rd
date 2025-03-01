@@ -4,7 +4,7 @@
 \alias{introduce_snv}
 \title{Introduce Single Nucleotide Variants into a Genome}
 \usage{
-introduce_snv(genome, mut_table)
+introduce_snv(genome, mut_table, verbose = TRUE)
 }
 \arguments{
 \item{genome}{A nested list containing genome sequences:

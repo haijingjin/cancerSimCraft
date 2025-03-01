@@ -1,11 +1,99 @@
-# snv_relevant_functions_v7.R
 
+#' Calculate Number of SNVs in a Clone
+#'
+#' @description
+#' Calculates the expected number of single nucleotide variants (SNVs) accumulated
+#' in a clone over time using a simple linear model where the number of mutations is
+#' proportional to time, genome length, and a base mutation rate.
+#'
+#' @param time Numeric value representing time (units should be consistent with mutation_rate)
+#' @param genome_length Numeric value representing the length of the genome in base pairs
+#' @param mutation_rate Numeric value representing the mutation rate per base pair per time unit
+#'
+#' @return Integer number of mutations, rounded to the nearest whole number
+#'
+#' @details
+#' The function implements a simple linear model where the number of mutations is
+#' directly proportional to time, genome length, and mutation rate. The result is
+#' rounded to the nearest integer.
+#'
+#' @examples
+#' # Calculate mutations for 100 time units, genome length of 1e6, and mutation rate of 1e-8
+#' calc_clone_snv_num(100, 1e6, 1e-8)
+#'
+#' @export
 calc_clone_snv_num <- function(time, genome_length, mutation_rate) {
   # A simple model where mutation number is proportional to time, genome length, and a base mutation rate
   num_mutations <- time * genome_length * mutation_rate
   return(round(num_mutations, digits = 0))
 }
 
+#' Get Mutations for Sampled Single Cells
+#'
+#' @description
+#' Extracts and organizes mutation information for specified sampled cells, including
+#' mutations in their ancestral lineage, and identifies recurrent mutations.
+#'
+#' @param cell_info Data frame containing cell lineage information with columns:
+#'        clone, parent, birth_time, death_time, cell_index
+#' @param mutation_info Data frame containing mutation information with columns:
+#'        clone, cell_index, haplotype, chrom, pos, time
+#' @param sampled_cell_idx Vector of cell indices for which to retrieve mutation information
+#'
+#' @return A list containing three elements:
+#' \itemize{
+#'   \item sampled_sc_mutations: List where each element corresponds to a sampled cell,
+#'         containing a data frame of mutations for that cell and its ancestors
+#'   \item sampled_mutation_table: Data frame containing all unique mutations across all
+#'         sampled cells and their ancestors
+#'   \item recurrent_mutation_tracker: List tracking recurrent mutations found across
+#'         multiple cells or lineages
+#' }
+#'
+#' @details
+#' This function reconstructs the complete mutation profile for each sampled cell by:
+#'
+#' 1. Identifying all ancestral cells for each sampled cell using get_sc_ancestors()
+#' 2. Collecting mutations from the sampled cell and all its ancestors
+#' 3. Identifying recurrent mutations (mutations that occur multiple times independently)
+#' 4. Grouping and processing recurrent mutations for tracking
+#' 5. Removing duplicate mutations from the final table
+#'
+#' The function requires the following helper functions to be defined:
+#' - get_sc_ancestors(): To identify ancestral cells
+#' - identify_recurrent_mutations(): To find mutations that appear multiple times
+#' - group_recurrent_mutations(): To group similar recurrent mutations
+#' - process_recurrent_mutation(): To track and analyze recurrent mutations
+#'
+#' @examples
+#' # Create sample cell_info and mutation_info data frames
+#' cell_info <- data.frame(
+#'   clone = c("A", "A", "B", "A", "B"),
+#'   parent = c(NA, 1, 1, 2, 3),
+#'   birth_time = c(0, 10, 10, 15, 20),
+#'   death_time = c(10, NA, NA, NA, NA),
+#'   cell_index = 1:5
+#' )
+#'
+#' mutation_info <- data.frame(
+#'   clone = c("A", "A", "B", "A"),
+#'   cell_index = c(1, 2, 3, 4),
+#'   haplotype = c("hap1", "hap1", "hap2", "hap1"),
+#'   chrom = c("chr1", "chr1", "chr2", "chr1"),
+#'   pos = c(1000, 2000, 1500, 1000),
+#'   time = c(5, 12, 15, 18)
+#' )
+#'
+#' # Get mutations for cells 4 and 5
+#' mutations <- get_mutations_sc(cell_info, mutation_info, c(4, 5))
+#'
+#' # View mutation summary
+#' print(mutations$sampled_mutation_table)
+#'
+#' @seealso
+#' \code{\link{simulate_sc_dynamics}}, \code{\link{get_sc_ancestors}}
+#'
+#' @export
 get_mutations_sc <- function(cell_info, mutation_info, sampled_cell_idx = NULL) {
 
   if (is.null(sampled_cell_idx)) {
@@ -45,7 +133,30 @@ get_mutations_sc <- function(cell_info, mutation_info, sampled_cell_idx = NULL) 
   return(list(sampled_sc_mutations = sampled_sc_mutations, sampled_mutation_table = sampled_mutation_table, recurrent_mutation_tracker = recurrent_mutation_tracker))
 }
 
-
+#' Identify Recurrent Mutations in Cell Lineage Data
+#'
+#' @description
+#' Identifies mutations that occur multiple times at the same genomic location
+#' across different cells in a lineage.
+#'
+#' @param cell_mutations Data frame containing mutation information with columns:
+#'        clone, cell_index, haplotype, chrom, pos, time
+#'
+#' @return A data frame containing only the recurrent mutations (mutations that
+#'         appear more than once at the same genomic location)
+#'
+#' @details
+#' This function identifies recurrent mutations by:
+#'
+#' 1. Creating a unique key for each mutation based on its haplotype, chromosome, and position
+#' 2. Identifying duplicate keys, which indicate the same mutation occurring multiple times
+#' 3. Extracting and returning only the recurrent mutations
+#'
+#'
+#' @seealso
+#' \code{\link{get_mutations_sc}}, \code{\link{group_recurrent_mutations}}
+#'
+#' @export
 identify_recurrent_mutations <- function(cell_mutations) {
   # Create a key for each mutation based on haplotype, chromosome, and position
   mutation_keys <- paste(cell_mutations$haplotype, cell_mutations$chrom, cell_mutations$pos, sep = "_")
@@ -59,6 +170,35 @@ identify_recurrent_mutations <- function(cell_mutations) {
   return(recurrent_mutations)
 }
 
+#' Group Recurrent Mutations by Genomic Location
+#'
+#' @description
+#' Organizes recurrent mutations by grouping them according to their genomic location
+#' (haplotype, chromosome, and position).
+#'
+#' @param recurrent_mutations Data frame containing mutation information with columns:
+#'        clone, cell_index, haplotype, chrom, pos, time
+#'
+#' @return A list where each element is a data frame containing all mutations that
+#'         occurred at the same genomic location. List names are constructed as
+#'         "haplotype_chromosome_position".
+#'
+#' @details
+#' This function takes a data frame of recurrent mutations and organizes them into groups
+#' based on their genomic coordinates. It:
+#'
+#' 1. Creates a unique key for each mutation combining haplotype, chromosome, and position
+#' 2. Splits the data frame into a list of smaller data frames, each containing
+#'    all mutations that occurred at the same genomic location
+#'
+#' This grouping is useful for analyzing patterns of mutations at specific sites
+#' and for further processing of recurrent mutations in evolutionary analyses.
+#'
+#'
+#' @seealso
+#' \code{\link{identify_recurrent_mutations}}, \code{\link{process_recurrent_mutation}}
+#'
+#' @export
 group_recurrent_mutations <- function(recurrent_mutations) {
   # Create a key for grouping mutations
   group_keys <- paste(recurrent_mutations$haplotype, recurrent_mutations$chrom, recurrent_mutations$pos, sep = "_")
@@ -69,6 +209,36 @@ group_recurrent_mutations <- function(recurrent_mutations) {
   return(grouped_recurrent_mutations)
 }
 
+#' Process and Track Recurrent Mutations
+#'
+#' @description
+#' Updates a tracker structure that organizes and monitors recurrent mutations
+#' across different lineages, categorizing them as identical, inclusive, or branching.
+#'
+#' @param mutation Data frame containing information about a specific set of recurrent mutations
+#'        at the same genomic location
+#' @param mutation_key Character string uniquely identifying the genomic location of the mutation
+#'        (typically in format "haplotype_chromosome_position")
+#' @param tracker List structure that tracks recurrent mutations by organizing them into
+#'        sets based on their occurrence patterns
+#'
+#' @return Updated tracker list with the mutation properly categorized and stored
+#'
+#' @details
+#' This function processes recurrent mutations by comparing them to existing mutation sets in a tracker.
+#' It handles three scenarios:
+#'
+#' 1. If the mutation set already exists and is identical, it returns the tracker unchanged.
+#' 2. If the mutation set is a superset of an existing set, it updates the existing set with new mutations.
+#' 3. If the mutation set is distinct from existing sets, it creates a new branch in the tracker.
+#'
+#'
+#' The function prints the relationship category for debugging and monitoring purposes.
+#'
+#' @seealso
+#' \code{\link{group_recurrent_mutations}}, \code{\link{get_mutations_sc}}
+#'
+#' @export
 process_recurrent_mutation <- function(mutation, mutation_key, tracker) {
   if (mutation_key %in% names(tracker)) {
     mutation_sets <- tracker[[mutation_key]]
@@ -99,6 +269,50 @@ process_recurrent_mutation <- function(mutation, mutation_key, tracker) {
   return(tracker)
 }
 
+#' Simulate Nucleotide Change for a Single Mutation
+#'
+#' @description
+#' Simulates the specific nucleotide change for a single mutation based on genomic
+#' context, handling both regular and recurrent mutations, as well as mutations in
+#' lost segments.
+#'
+#' @param single_mutation Data frame row containing information about a single mutation
+#' @param seg_list List structure containing segment information for genome regions
+#' @param genome_sequence List of DNA sequences representing the reference genome
+#' @param nt_transition_matrix Matrix specifying nucleotide transition probabilities
+#' @param recurrent Logical indicating whether this is a recurrent mutation (default: FALSE)
+#' @param original_nt Character specifying the original nucleotide for recurrent mutations
+#'        (required when recurrent = TRUE, default: NA)
+#'
+#' @return The updated single_mutation row with additional fields:
+#' \itemize{
+#'   \item seg_id: Segment identifier for the mutation
+#'   \item ref_pos: Reference position within the segment
+#'   \item original_nt: Original nucleotide at the mutation site
+#'   \item alternative_nt: Mutated nucleotide
+#'   \item processed: Set to TRUE indicating the mutation has been processed
+#' }
+#'
+#' @details
+#' This function simulates nucleotide-level details for a single mutation by:
+#'
+#' 1. Identifying the genomic segment containing the mutation
+#' 2. Determining if the segment has been lost through deletion or other structural variants
+#' 3. For mutations in lost segments:
+#'    - Setting both original and alternative nucleotides to "N"
+#' 4. For mutations in non-lost segments:
+#'    - For regular mutations: Looking up the original nucleotide from the reference genome
+#'      and sampling an alternative nucleotide based on the transition matrix
+#'    - For recurrent mutations: Using the provided original nucleotide and sampling
+#'      an alternative nucleotide based on the transition matrix
+#'
+#' The function requires the helper function get_segment_info() to map the mutation
+#' coordinates to the appropriate genomic segment.
+#'
+#' @seealso
+#' \code{\link{get_segment_info}}, \code{\link{sim_snv_nt_sc}}
+#'
+#' @export
 simulate_single_nt_change <- function(single_mutation, seg_list, genome_sequence, nt_transition_matrix, recurrent = FALSE, original_nt = NA) {
   haplotype <- single_mutation$haplotype
   chrom <- single_mutation$chrom
@@ -155,7 +369,30 @@ simulate_single_nt_change <- function(single_mutation, seg_list, genome_sequence
   return(single_mutation)
 }
 
-
+#' Find Index of an Identical Row in a Data Frame
+#'
+#' @description
+#' Searches a data frame for a row that is identical to the provided row
+#' and returns its index.
+#'
+#' @param row A data frame row or vector to search for
+#' @param dataframe The data frame to search within
+#'
+#' @return An integer representing the index of the first identical row found,
+#'         or NA if no identical row exists in the data frame
+#'
+#' @details
+#' This function iterates through each row of the provided data frame and compares it
+#' with the target row using the all.equal function. The comparison ignores attributes
+#' to focus on the content of the data.
+#'
+#' The function is particularly useful for finding specific mutations or cells in larger
+#' data frames when the exact row index is not known but the content is.
+#'
+#' @seealso
+#' \code{\link{sim_snv_nt_sc}}
+#'
+#' @export
 find_identical_row_index <- function(row, dataframe) {
   for (i in 1:nrow(dataframe)) {
     comparison_result <- all.equal(row, dataframe[i, , drop = FALSE], check.attributes = FALSE)
@@ -167,7 +404,54 @@ find_identical_row_index <- function(row, dataframe) {
 }
 
 
-
+#' Simulate Single Nucleotide Variants for Single Cell Data
+#'
+#' @description
+#' Simulates nucleotide-level details for single nucleotide variants (SNVs) in single cell
+#' mutation data, handling both regular and recurrent mutations with appropriate nucleotide changes.
+#'
+#' @param genome_sequence List of DNA sequences representing the reference genome
+#' @param seg_list Data frame or list containing genomic segment information with mapping between
+#'        chromosome coordinates and segment identifiers
+#' @param mutation_table Data frame containing mutation information with columns:
+#'        clone, cell_index, haplotype, chrom, pos, time
+#' @param recurrent_mutation_tracker List structure tracking recurrent mutations, organized by
+#'        genomic location and mutation sets (default is NA for no recurrent mutations)
+#' @param nt_transition_matrix Matrix specifying nucleotide transition probabilities for
+#'        different mutation types
+#'
+#' @return An extended mutation_table data frame with additional columns:
+#' \itemize{
+#'   \item seg_id: Segment identifier for the mutation
+#'   \item ref_pos: Reference position within the segment
+#'   \item original_nt: Original nucleotide at the mutation site
+#'   \item alternative_nt: Mutated nucleotide
+#'   \item processed: Logical flag indicating whether the mutation has been processed
+#' }
+#'
+#' @details
+#' This function simulates the nucleotide-level details of mutations by:
+#'
+#' 1. Extending the mutation table with columns for segment ID, reference position,
+#'    original nucleotide, alternative nucleotide, and processing status
+#' 2. Processing recurrent mutations first, maintaining proper nucleotide changes across
+#'    mutation sets (later mutations in a set build upon earlier ones)
+#' 3. Processing regular (non-recurrent) mutations
+#'
+#' For recurrent mutations, the function ensures that:
+#' - The first mutation in a set is processed normally
+#' - Subsequent mutations in the set use the alternative nucleotide from the previous
+#'   mutation as their original nucleotide
+#'
+#' The function relies on helper functions:
+#' - find_identical_row_index(): To locate specific mutations in the table
+#' - simulate_single_nt_change(): To determine nucleotide changes for individual mutations
+#'
+#' @seealso
+#' \code{\link{simulate_single_nt_change}}, \code{\link{find_identical_row_index}},
+#' \code{\link{process_recurrent_mutation}}
+#'
+#' @export
 sim_snv_nt_sc <- function(genome_sequence, seg_list, mutation_table, recurrent_mutation_tracker = NA, nt_transition_matrix){
 
   original_mut_ncol <- ncol(mutation_table)
@@ -523,6 +807,39 @@ sim_clonal_mutation_pos <- function(tree, chr_lengths, mutation_number) {
   return(mutation_info)
 }
 
+#' Retrieve Genomic Segment Information for a Mutation
+#'
+#' @description
+#' Identifies and returns the genomic segment that contains a specific mutation,
+#' handling both regular segments and segments that have been lost through deletions.
+#'
+#' @param seg_list List structure containing segment information for different
+#'        clones and haplotypes
+#' @param mutation Data frame row containing information about a single mutation,
+#'        with columns: clone, haplotype, chrom, pos
+#' @param in_loss_segment Logical indicating whether the mutation is in a segment
+#'        that has been lost through deletion
+#'
+#' @return A data frame row containing the segment information for the mutation,
+#'         or NULL if no matching segment is found
+#'
+#' @details
+#' This function locates the appropriate genomic segment for a mutation by:
+#'
+#' 1. Extracting relevant information (haplotype, chromosome, clone, position) from the mutation
+#' 2. Using different search criteria based on whether the segment is lost:
+#'    - For lost segments: Matches chromosome and original coordinates (ori_start/ori_end)
+#'      where CN_change is -1 and current coordinates (start/end) are NA
+#'    - For normal segments: Matches chromosome and current coordinates (start/end)
+#' 3. Returns NULL if no matching segment is found
+#'
+#' This function is primarily used by simulate_single_nt_change() to map mutations
+#' to their genomic context before simulating nucleotide changes.
+#'
+#' @seealso
+#' \code{\link{simulate_single_nt_change}}
+#'
+#' @export
 get_segment_info <- function(seg_list, mutation, in_loss_segment) {
   # Extract relevant information from the mutation
   haplotype <- mutation$haplotype

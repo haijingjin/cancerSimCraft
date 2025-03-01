@@ -39,6 +39,41 @@ generate_random_tree <- function(n, include_MRCA = FALSE) {
   return(g)
 }
 
+#' Get Ancestor Nodes in Phylogenetic Tree
+#'
+#' This function retrieves the ancestors of a specified node (clone) in a tree structure.
+#' It calculates the shortest path from the root node to the target node and returns the names of
+#' all ancestor nodes (excluding the target node itself).
+#'
+#' @param tree An igraph tree object representing the phylogenetic structure
+#' @param node The target node for which to find ancestors
+#'
+#' @return A character vector containing the names of the ancestor nodes, ordered from
+#'   the root to the immediate parent of the target node.
+#'
+#' @details
+#' The function:
+#' 1. Identifies the root node (assumes first vertex is root)
+#' 2. Finds shortest path from root to target node
+#' 3. Returns names of all nodes in the path
+#'
+#' @note
+#' Assumes the tree is properly rooted with root node as first vertex
+#'
+#' @examples
+#' \dontrun{
+#' library(igraph)
+#' # Create a simple tree
+#' tree <- make_tree(3, 2)
+#' V(tree)$name <- c("root", "A", "B")
+#'
+#' # Get ancestors of node "B"
+#' ancestors <- get_clone_ancestors(tree, "B")
+#' # Returns: c("root", "B")
+#' }
+#'
+#' @importFrom igraph V shortest_paths
+#' @export
 get_clone_ancestors <- function(tree, node){
   # Retrieve path from the root node to the target node
   root_node <- V(tree)[1]  # assuming the root is the first node
@@ -72,7 +107,32 @@ get_clone_descendants <- function(tree, node) {
 
 
 
-
+#' Identify Ancestral Cells in a Lineage
+#'
+#' @description
+#' Traces and returns all ancestral cell indices for a given cell by recursively
+#' following the parent relationships in the cell lineage information.
+#'
+#' @param cell_info Data frame containing cell lineage information with columns:
+#'        cell_index, parent, and other attributes
+#' @param cell_index Integer specifying the cell index for which to find ancestors
+#'
+#' @return A numeric vector containing the cell indices of all ancestors of the specified cell,
+#'         ordered from immediate parent to earliest ancestor
+#'
+#' @details
+#' This function traverses the cell lineage tree upward from the specified cell,
+#' following the parent relationships until it reaches a cell with no parent (NA in the parent column).
+#' It builds and returns a vector of all ancestor cell indices encountered during this traversal.
+#'
+#' The function is commonly used to reconstruct the complete lineage history of a cell,
+#' which is particularly useful for aggregating mutations or other heritable properties
+#' that are passed down through cell divisions.
+#'
+#' @seealso
+#' \code{\link{get_mutations_sc}}, \code{\link{simulate_sc_dynamics}}
+#'
+#' @export
 get_sc_ancestors <- function(cell_info, cell_index) {
   # Initialize an empty vector to store the ancestors
   ancestor_indices <- c()

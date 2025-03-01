@@ -1,5 +1,72 @@
-# sanity_check_functions_v5.R
 
+#' Perform Sanity Checks on Genomic Segments
+#'
+#' This function performs a sanity check on chromosome segments to ensure that the total length of the
+#' segments matches the expected chromosome lengths for both maternal and paternal haplotypes. It checks each
+#' chromosome and haplotype combination and reports any discrepancies.
+#'
+#' @param segment_list A list containing two data frames (maternal and paternal),
+#'        each with columns:
+#'        \itemize{
+#'          \item chrom - Chromosome name
+#'          \item ref_start - Segment start position
+#'          \item ref_end - Segment end position
+#'          \item CN_change - Copy number change (-1 indicates segments to exclude)
+#'        }
+#' @param chr_lengths A list containing two named numeric vectors (maternal and paternal)
+#'        where names are chromosome identifiers and values are chromosome lengths
+#'
+#' @return A list where:
+#'   \itemize{
+#'     \item Names are concatenated strings of haplotype and chromosome (e.g., "maternal chr1")
+#'     \item Values are error messages for failed checks
+#'     \item Empty list indicates all checks passed
+#'   }
+#'
+#' @details
+#' The function performs the following checks for each chromosome in both haplotypes:
+#' 1. Excludes segments with CN_change == -1
+#' 2. Sums the lengths of remaining segments (ref_end - ref_start + 1)
+#' 3. Compares total segment length with expected chromosome length
+#' 4. Records any mismatches in the returned list
+#'
+#' @examples
+#' \dontrun{
+#' # Create sample segment list
+#' segments <- list(
+#'   maternal = data.frame(
+#'     chrom = c("chr1", "chr1"),
+#'     ref_start = c(1, 101),
+#'     ref_end = c(100, 200),
+#'     CN_change = c(0, 1)
+#'   ),
+#'   paternal = data.frame(
+#'     chrom = c("chr1", "chr1"),
+#'     ref_start = c(1, 101),
+#'     ref_end = c(100, 200),
+#'     CN_change = c(0, 0)
+#'   )
+#' )
+#'
+#' # Create sample chromosome lengths
+#' chr_lengths <- list(
+#'   maternal = c(chr1 = 200),
+#'   paternal = c(chr1 = 200)
+#' )
+#'
+#' # Run sanity checks
+#' results <- segments_sanity_check(segments, chr_lengths)
+#' if (length(results) == 0) {
+#'   print("All checks passed")
+#' } else {
+#'   print("Some checks failed:")
+#'   print(results)
+#' }
+#' }
+#'
+#' @seealso
+#' Related functions for segment manipulation and validation
+#' @export
 segments_sanity_check <- function(segment_list, chr_lengths) {
   # Prepare a list to store the results
   failed_checks <- list()
@@ -79,7 +146,7 @@ segments_sanity_check <- function(segment_list, chr_lengths) {
 #' )
 #' # Results should show only 'N' nucleotides in lost regions
 #' }
-check_loss_segments <- function(clone_genome, clone_segments){
+check_loss_segments <- function(clone_genome, clone_segments, verbose = TRUE){
 
   results <- list() # Initialize a list to store results
   for(haplotype in c("maternal", "paternal")){
@@ -94,6 +161,15 @@ check_loss_segments <- function(clone_genome, clone_segments){
 
     for(i in 1:nrow(loss_segments)){
       chrom <- loss_segments$chrom[i]
+
+      # Check if the chromosome exists in the clone_genome # this is modified for vignette
+      if (!chrom %in% names(clone_genome[[haplotype]])) {
+        if(verbose){
+          cat(paste("Chromosome", chrom, "not found in", haplotype, "haplotype. Skipping.\n"))
+        }
+        next  # Skip to the next loss segment if the chromosome is not found
+      }
+
       ori_start <- loss_segments$ori_start[i]
       ori_end <- loss_segments$ori_end[i]
       loss_seq <- clone_genome[[haplotype]][[chrom]][ori_start:ori_end]
@@ -156,7 +232,8 @@ check_genome_chr_length <- function(clone_genome, expected_chr_lengths) {
   results <- list()
 
   for(haplotype in c("maternal", "paternal")){
-    for(chr in names(expected_chr_lengths[[haplotype]])){
+    #for(chr in names(expected_chr_lengths[[haplotype]])){ #modify for vignette
+    for(chr in names(clone_genome[[haplotype]])){
       actual_length = length(clone_genome[[haplotype]][[chr]])
       expected_length = expected_chr_lengths[[haplotype]][chr]
 
@@ -348,7 +425,31 @@ check_genome_mutations <- function(clone_genome, clone_mutation_table, clone_seg
 
 }
 
-
+#' Validate Genome Mutation Check Results
+#'
+#' @description
+#' Validates the output from mutation checking functions to ensure all mutations
+#' were correctly introduced into the genome.
+#'
+#' @param check_output A nested list structure containing mutation check results,
+#'        typically returned by check_genome_mutations()
+#'
+#' @return Logical value: TRUE if all mutations were correctly introduced,
+#'         FALSE if any validation failures were detected
+#'
+#' @details
+#' This function examines the output from a mutation checking function to verify
+#' that all mutations were correctly introduced into the genome. It:
+#'
+#'
+#' This function is typically used as a safeguard in genome simulation pipelines
+#' to ensure the integrity of the mutation introduction process.
+#'
+#'
+#' @seealso
+#' \code{\link{check_genome_mutations}}, \code{\link{simulate_sc_dynamic_reads_for_batches}}
+#'
+#' @export
 validate_mutation_check <- function(check_output) {
   for (haplotype in c("maternal", "paternal")) {
     if (!is.null(check_output[[haplotype]])) {

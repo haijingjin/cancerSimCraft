@@ -29,6 +29,64 @@ initiate_sub_seg_list <- function(seg_table) {
   return(sub_seg_list)
 }
 
+#' Identify Clusters of Highly Correlated Genomic Regions
+#'
+#' @description
+#' Identifies clusters of adjacent genomic regions that show high correlation with each other.
+#' Uses a sliding window approach to find contiguous regions where the average pairwise
+#' correlation exceeds a specified threshold.
+#'
+#' @param cor_matrix A numeric correlation matrix where rows and columns represent
+#'        genomic regions, with column names identifying the regions
+#' @param min_cluster_size Integer specifying the minimum number of regions required
+#'        to form a cluster (must be >= 2)
+#' @param threshold Numeric value between -1 and 1 specifying the minimum average
+#'        correlation required for regions to be considered part of the same cluster
+#'
+#' @return A list where each element represents a cluster. Each cluster contains:
+#'         \itemize{
+#'           \item Named integer vector with positions of regions in the cluster
+#'           \item Names of the vector correspond to the region identifiers from
+#'                 the input correlation matrix
+#'         }
+#'
+#' @details
+#' The function implements a dynamic window-based clustering algorithm:
+#' \itemize{
+#'   \item Starts with a window of minimum cluster size
+#'   \item Calculates average correlation (excluding diagonal) within the window
+#'   \item If average correlation exceeds threshold:
+#'     \itemize{
+#'       \item Extends window if not at matrix end
+#'       \item Finalizes cluster if at matrix end
+#'     }
+#'   \item If correlation drops below threshold:
+#'     \itemize{
+#'       \item Finalizes cluster if window size >= minimum
+#'       \item Moves to next position if window size < minimum
+#'     }
+#' }
+#'
+#' @examples
+#' # Create sample correlation matrix
+#' set.seed(123)
+#' n_regions <- 10
+#' cor_mat <- matrix(runif(n_regions^2, -1, 1), nrow = n_regions)
+#' cor_mat[upper.tri(cor_mat)] <- t(cor_mat)[upper.tri(cor_mat)]
+#' diag(cor_mat) <- 1
+#' colnames(cor_mat) <- paste0("region_", 1:n_regions)
+#'
+#' # Find clusters
+#' clusters <- identify_region_clusters(
+#'   cor_matrix = cor_mat,
+#'   min_cluster_size = 3,
+#'   threshold = 0.7
+#' )
+#'
+#' @seealso
+#' Other clustering functions in the package for genomic analysis
+#'
+#' @export
 identify_region_clusters <- function(cor_matrix, min_cluster_size, threshold) {
   cluster_list <- list()
   window_start <- 1
@@ -75,7 +133,59 @@ identify_region_clusters <- function(cor_matrix, min_cluster_size, threshold) {
   return(cluster_list)
 }
 
-
+#' Create Genomic Segments from Cytoband Annotations
+#'
+#' @description
+#' Converts clustered cytoband annotations into genomic segments by identifying
+#' the spanning regions for each cluster. Creates segments for both maternal and
+#' paternal haplotypes with additional metadata for downstream analysis.
+#'
+#' @param cluster_anno A nested list containing cytoband annotations organized by
+#'        haplotype (maternal/paternal), chromosome, and cluster. Each cluster contains
+#'        a data frame of cytoband information including chromStart and chromEnd positions.
+#'
+#' @return A list with two elements (maternal and paternal), each containing a data frame
+#'         of genomic segments with the following columns:
+#'         \itemize{
+#'           \item chrom: Chromosome name
+#'           \item start: Starting position of the segment
+#'           \item end: Ending position of the segment
+#'           \item region_name: Unique identifier (format: "sub_haplotype_chrom_clusterIndex")
+#'           \item haplotype: Maternal or paternal
+#'           \item ref_start: Reference start position
+#'           \item ref_end: Reference end position
+#'           \item ori_start: Original start position
+#'           \item ori_end: Original end position
+#'           \item copy_index: Copy number index (initialized to 0)
+#'           \item seg_id: Segment identifier (initialized to 0)
+#'           \item CN_change: Copy number change (initialized to 0)
+#'           \item seg_source_edge: Source edge info (initialized to "root")
+#'           \item seg_source_event: Source event info (initialized to "base")
+#'         }
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming cluster_anno is already defined:
+#' segments <- sub_seg_from_cytoband_anno(cluster_anno)
+#'
+#' # Access maternal segments:
+#' maternal_segs <- segments[["maternal"]]
+#' }
+#'
+#' @details
+#' For each cluster in the input annotations, the function:
+#' 1. Identifies the minimum start and maximum end positions of all cytobands
+#' 2. Creates a unique region name using haplotype, chromosome, and cluster index
+#' 3. Initializes metadata fields for downstream analysis
+#' 4. Combines all segments into haplotype-specific data frames
+#'
+#' The resulting segments serve as a baseline for further genomic analyses,
+#' with fields prepared for tracking copy number changes and segment evolution.
+#'
+#' @seealso
+#' Related functions for genomic segment analysis and manipulation
+#'
+#' @export
 sub_seg_from_cytoband_anno <- function(cluster_anno) {
 
   sub_seg_list <- list()
@@ -147,6 +257,62 @@ cytoband_to_chr_arm  <- function(cytoband_table) {
   return(chr_arm_table)
 }
 
+
+#' Create Initial Segment List from Chromosome Arm Table
+#'
+#' @description
+#' Creates initial genomic segments for both maternal and paternal haplotypes from
+#' a chromosome arm table. Handles coordinate system conversion (0-based to 1-based)
+#' and initializes tracking metadata for each segment.
+#'
+#' @param chr_arm_table A data frame containing chromosome arm information with columns:
+#'        \itemize{
+#'          \item chrom: Chromosome name
+#'          \item start: Start position
+#'          \item end: End position
+#'          \item region_name: Identifier for the chromosome arm
+#'        }
+#'
+#' @return A list with two elements ("maternal" and "paternal"), each containing
+#'         a data frame of segments with the following columns:
+#'         \itemize{
+#'           \item All original columns from chr_arm_table
+#'           \item haplotype: "maternal" or "paternal"
+#'           \item ref_start: Reference start position
+#'           \item ref_end: Reference end position
+#'           \item ori_start: Original start position
+#'           \item ori_end: Original end position
+#'           \item copy_index: Set to 1 for initial segments
+#'           \item seg_id: Segment identifier (format: `<region_name>_1`)
+#'           \item CN_change: Copy number change (initialized to 0)
+#'           \item seg_source_edge: Set to "before_root"
+#'           \item seg_source_event: Set to "base"
+#'         }
+#'
+#' @details
+#' The function performs the following operations:
+#' 1. Checks and converts coordinates from 0-based to 1-based if necessary
+#' 2. Creates two copies of the input table (maternal and paternal)
+#' 3. Adds metadata columns for tracking segment evolution
+#' 4. Uses dplyr for efficient data manipulation
+#'
+#' @note
+#' Assumes input coordinates are either 0-based or 1-based.
+#' Automatically converts 0-based coordinates to 1-based.
+#'
+#' @examples
+#' \dontrun{
+#' chr_arms <- data.frame(
+#'   chrom = c("chr1", "chr1"),
+#'   start = c(0, 1000000),
+#'   end = c(1000000, 2000000),
+#'   region_name = c("chr1p", "chr1q")
+#' )
+#' segments <- create_initial_seg_list(chr_arms)
+#' }
+#'
+#' @importFrom dplyr %>% mutate
+#' @export
 create_initial_seg_list <- function(chr_arm_table) {
 
   # If chr_arm_table is 0-based, create 1-based coordinates

@@ -4,7 +4,7 @@
 \alias{check_loss_segments}
 \title{Check Nucleotide Content in Lost Segments}
 \usage{
-check_loss_segments(clone_genome, clone_segments)
+check_loss_segments(clone_genome, clone_segments, verbose = TRUE)
 }
 \arguments{
 \item{clone_genome}{A nested list containing genome sequences:

@@ -1,6 +1,6 @@
 Package: cancerSimCraft
 Title: Cancer Evolution Simulation Toolkit
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person("Haijing", "Jin", , "haijingjin0522@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-1459-727X"))

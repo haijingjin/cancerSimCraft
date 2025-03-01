@@ -1,5 +1,48 @@
-# genome_relevant_functions_v5.R
-
+#' Synthesize Founder Genomes for a Cell Lineage Tree
+#'
+#' @description
+#' Synthesizes founder genomes for each clone in a cell lineage tree by traversing
+#' the tree from root to leaves, incorporating appropriate mutations and structural
+#' variants at each step.
+#'
+#' @param tree An igraph object representing the cell lineage tree with vertices as clone types
+#' @param root_genome List containing the genome sequences for the root clone
+#' @param seg_list List structure containing segment information for all clones
+#' @param mutation_info Data frame containing mutation details for all cells
+#' @param cell_info Data frame containing cell lineage information
+#'
+#' @return A list containing four elements:
+#' \itemize{
+#'   \item all_node_genomes: List of genome sequences for each clone in the tree
+#'   \item child_node_founders_df: Data frame containing information about the founder cells for each clone
+#'   \item child_node_founder_mutations: List of all mutations in founder cells, organized by clone
+#'   \item child_node_founder_mutations_filtered: List of mutations that occurred between parent and child nodes
+#' }
+#'
+#' @details
+#' The function builds genomes sequentially following the evolutionary relationships
+#' defined in the tree structure, ensuring that each clone's genome properly inherits
+#' all modifications from its ancestors plus its unique changes.
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming you have a cell lineage tree and other required objects
+#' founder_genomes <- synth_sc_tree_founder_genomes(
+#'   tree = clone_tree,
+#'   root_genome = reference_genome,
+#'   seg_list = all_segments,
+#'   mutation_info = mutations,
+#'   cell_info = cell_lineage
+#' )}
+#'
+#'
+#' @seealso
+#' \code{\link{synth_sc_founder_genome}}, \code{\link{introduce_snv_sc}},
+#' \code{\link{get_mutations_sc}}
+#'
+#' @importFrom igraph V degree dfs get.adjlist
+#'
+#' @export
 synth_sc_tree_founder_genomes <- function(tree, root_genome, seg_list, mutation_info, cell_info) {
 
   root_name <- names(V(tree))[degree(tree, mode = "in") == 0]
@@ -28,9 +71,9 @@ synth_sc_tree_founder_genomes <- function(tree, root_genome, seg_list, mutation_
     child_node_founders_df <- rbind(child_node_founders_df, child_node_founder)
 
     # Extract all ancestors of child node founder
-    child_node_founder_mut <- get_mutations_sc_v2(cell_info = cell_info,
-                                                  mutation_info = mutation_info,
-                                                  sampled_cell_idx = child_node_founder$cell_index)
+    child_node_founder_mut <- get_mutations_sc(cell_info = cell_info,
+                                               mutation_info = mutation_info,
+                                               sampled_cell_idx = child_node_founder$cell_index)
     founder_index_char <- as.character(child_node_founder$cell_index)
     child_node_founder_mut <- child_node_founder_mut$sampled_sc_mutations[[founder_index_char]]
     child_node_founder_mutations[[child_node]] <- child_node_founder_mut
@@ -68,7 +111,43 @@ synth_sc_tree_founder_genomes <- function(tree, root_genome, seg_list, mutation_
   ))
 }
 
-
+#' Synthesize Founder Genome with Structural Variants
+#'
+#' @description
+#' Incorporates structural variants (deletions, duplications) into a genome during
+#' the transition from parent to child clone in a cell lineage tree.
+#'
+#' @param child_node Character string specifying the name of the child clone
+#' @param parent_node Character string specifying the name of the parent clone
+#' @param pre_child_genome List containing the genome sequences after SNVs have been incorporated
+#' @param seg_list List structure containing segment information for all clones
+#'
+#' @return A list containing the modified genome with structural variants incorporated
+#'
+#' @details
+#' This function applies structural variants to a genome during clone evolution by:
+#'
+#' 1. Starting with a genome that already has SNVs incorporated (pre_child_genome)
+#' 2. Identifying segments that are associated with the specific transition edge
+#'    between parent and child clones
+#' 3. Processing each relevant segment based on its copy number change (CN_change):
+#'    - For deletions (CN_change = -1): Replaces the original sequence with "N" characters
+#'    - For duplications (CN_change >= 1): Copies the sequence and adds it to the end of the chromosome
+#'
+#' The function works on each haplotype (maternal/paternal) separately and modifies
+#' only chromosomes that have structural variant events associated with the specific
+#' parent-to-child clone transition.
+#'
+#' This function is typically called after SNVs have been incorporated into the genome
+#' but before cell-specific mutations are added, representing the genetic changes that
+#' define a new clone's emergence.
+#'
+#' @seealso
+#' \code{\link{synth_sc_tree_founder_genomes}}, \code{\link{introduce_snv_sc}}
+#'
+#' @importFrom Biostrings subseq
+#'
+#' @export
 synth_sc_founder_genome <- function(child_node, parent_node, pre_child_genome, seg_list){
 
   # Initialize the target genome as a copy of the nearest genome
@@ -121,7 +200,30 @@ synth_sc_founder_genome <- function(child_node, parent_node, pre_child_genome, s
   return(target_genome)
 }
 
-
+#' Synthesize Single-Cell Genome
+#'
+#' This function synthesizes a single-cell genome by introducing single nucleotide variants (SNVs)
+#' into a backbone genome. It retrieves cell-specific mutations, filters mutations that occurred
+#' after the founder cell, and introduces the mutations into the genome.
+#'
+#' @param cell_index Integer specifying the index of the cell for which to synthesize a genome
+#' @param backbone_genome List containing the reference genome sequences of the cell's clone
+#' @param sc_mut_list List where each element corresponds to a cell's mutations, with cell indices as names
+#' @param mut_table_with_nt Data frame containing mutation details with nucleotide changes
+#' @param founder_cell_index Integer specifying the founder cell index of the clone
+#'
+#' @return A list containing two elements:
+#' \itemize{
+#'   \item sc_genome: The synthesized single cell genome with mutations incorporated
+#'   \item cell_mut_with_nt: Data frame containing the cell-specific mutations with nucleotide details
+#' }
+#'
+#'
+#' @seealso
+#' \code{\link{find_identical_row_index}}, \code{\link{introduce_snv_sc}},
+#' \code{\link{simulate_sc_dynamic_reads_for_batches}}
+#'
+#' @export
 synth_sc_genome <- function(cell_index, backbone_genome, sc_mut_list, mut_table_with_nt, founder_cell_index){
   # Retrieve sc specific mutations for the given cell
   cell_mut <- sc_mut_list[[as.character(cell_index)]]
@@ -252,11 +354,11 @@ synth_clone_genome_for_sc <- function(target_clone, nearest_genome, nearest_clon
 #'
 #' @importFrom Biostrings subseq
 #' @export
-synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree, seg_list, mut_table){
+synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree, seg_list, mut_table, verbose = TRUE){
 
   # Initialize the target genome as a copy of the nearest genome
   target_genome <- nearest_genome
-
+  rm(nearest_genome)
   # Get the edges between the nearest clone and the target clone
   edges <- get_edges_between_clones(tree, upper_node = nearest_clone, lower_node = target_clone)
 
@@ -270,7 +372,9 @@ synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree
       # Filter segments based on the events in the current edge
       relevant_segments <- haplotype_segments[haplotype_segments$seg_source_edge == edge, ]
       if(nrow(relevant_segments) == 0) {
-        print(paste("No new segments formed for haplotype", haplotype, "in the edge", edge))
+        if(verbose){
+          print(paste("No new segments formed for haplotype", haplotype, "in the edge", edge))
+        }
         next
       }
 
@@ -278,6 +382,14 @@ synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree
       for(i in 1:nrow(relevant_segments)){
         segment <- relevant_segments[i, ]
         chrom <- segment$chrom
+        # Add for vignette
+        if (!chrom %in% names(target_genome[[haplotype]])) {
+          if(verbose){
+            print(paste("Chromosome", chrom, "not found in target genome for haplotype", haplotype))
+          }
+          next
+        }
+
         ori_start <- segment$ori_start
         ori_end <- segment$ori_end
         seg_source_event <- segment$seg_source_event
@@ -303,7 +415,7 @@ synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree
     edge_mutations <- mut_table[mut_table$edge_name == edge, ]
 
     if(nrow(edge_mutations) > 0){
-      snv_result <- introduce_snv(genome = target_genome, mut_table = edge_mutations)
+      snv_result <- introduce_snv(genome = target_genome, mut_table = edge_mutations, verbose = verbose)
       target_genome <- snv_result$genome
     }
   }
@@ -312,6 +424,42 @@ synth_clone_genome <- function(target_clone, nearest_genome, nearest_clone, tree
 }
 
 
+
+
+#' Introduce Single Nucleotide Variants into a Single Cell Genome
+#'
+#' @description
+#' Incorporates single nucleotide variants (SNVs) into a genome sequence, handling
+#' both regular mutations and recurrent mutations at the same genomic position.
+#'
+#' @param input_genome List containing genome sequences to be modified
+#' @param sc_mut_table_with_nt Data frame containing mutation details with columns:
+#'        haplotype, chrom, pos, original_nt, alternative_nt, time
+#'
+#' @return A list containing the modified genome sequences with all mutations incorporated
+#'
+#' @details
+#' This function introduces mutations into a genome sequence with special handling
+#' for recurrent mutations (multiple mutations at the same genomic position):
+#'
+#' 1. Identifies recurrent mutations by detecting duplicated positions across
+#'    haplotype, chromosome, and position
+#' 2. Processes non-recurrent mutations first using the insert_mutations() helper function
+#' 3. For recurrent mutations:
+#'    - Groups mutations by their genomic coordinates
+#'    - For each position with multiple mutations, creates a consolidated mutation that
+#'      applies the cumulative effect (using the original nucleotide from the first mutation
+#'      and the alternative nucleotide from the last mutation in the timeline)
+#'    - Applies these consolidated recurrent mutations to the genome
+#'
+#' This approach ensures that the final genome correctly represents the cumulative
+#' effect of sequential mutations at the same position, rather than applying each
+#' mutation independently which could lead to incorrect results.
+#'
+#' @seealso
+#' \code{\link{insert_mutations}}, \code{\link{synth_sc_genome}}
+#'
+#' @export
 introduce_snv_sc <- function(input_genome, sc_mut_table_with_nt) {
   # Initialize a copy of the genome to store the modified sequences
   modified_genome <- input_genome
@@ -366,6 +514,25 @@ introduce_snv_sc <- function(input_genome, sc_mut_table_with_nt) {
 }
 
 
+#' Insert Mutations into a Genome
+#'
+#' This function inserts single nucleotide variants (SNVs) into a genome at specified positions.
+#' It groups mutations by haplotype and chromosome for efficient processing and modifies the genome
+#' sequence accordingly.
+#'
+#' @param genome List containing genome sequences organized by haplotype and chromosome
+#' @param mutations Data frame containing mutation details with columns:
+#'        haplotype, chrom, pos, alternative_nt
+#'
+#' @return The modified genome list with mutations incorporated
+#'
+#' @details
+#' The function is designed to be efficient when processing large numbers of mutations
+#' by minimizing the number of times each sequence needs to be modified.
+#'
+#' @importFrom Biostrings replaceLetterAt
+#'
+#' @export
 insert_mutations <- function(genome, mutations) {
   # Group mutations by haplotype and chromosome for efficient processing
   grouped_mutations <- split(mutations, list(mutations$haplotype, mutations$chrom))
@@ -435,7 +602,7 @@ insert_mutations <- function(genome, mutations) {
 #' )
 #' modified <- introduce_snv(genome, mutations)
 #' }
-introduce_snv <- function(genome, mut_table) {
+introduce_snv <- function(genome, mut_table, verbose = TRUE) {
   # Initialize a copy of the genome to store the modified sequences
   modified_genome <- genome
 
@@ -449,6 +616,14 @@ introduce_snv <- function(genome, mut_table) {
     haplotype_chrom <- strsplit(group_name, split = "\\.")
     haplotype <- haplotype_chrom[[1]][1]
     chrom <- haplotype_chrom[[1]][2]
+
+    # Check if the chromosome exists in the genome
+    if (!chrom %in% names(modified_genome[[haplotype]])) {
+      if(verbose){
+        print(paste("Chromosome", chrom, "not found in genome for haplotype", haplotype))
+      }
+      next
+    }
 
     # Extract the sequence for this haplotype and chromosome
     sequence <- modified_genome[[haplotype]][[chrom]]

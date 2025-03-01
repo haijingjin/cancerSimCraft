@@ -1,5 +1,51 @@
-# event_relevant_functions_v3.R
 
+#' Process and Expand Chromosome-Level CNV Events
+#'
+#' @description
+#' Processes a table of genomic events, expanding chromosome-level CNV events
+#' into separate events for p and q arms while preserving other events.
+#'
+#' @param event_table A data frame of genomic events containing:
+#'        \itemize{
+#'          \item event_type: Type of event (e.g., "CNV", "WGD")
+#'          \item region_name: Region identifier or chromosome name in format "chrN"
+#'                           where N is the chromosome number
+#'          \item Other event-specific columns that will be preserved
+#'        }
+#'
+#' @return A data frame with the same structure as input but with chromosome-level
+#'         CNV events expanded into p and q arm events. For example:
+#'         \itemize{
+#'           \item A CNV event for "chr1" becomes two events for "chr1p" and "chr1q"
+#'           \item Non-CNV events or non-chromosome-level CNVs remain unchanged
+#'         }
+#'
+#' @details
+#' For each row in the input table:
+#' 1. If it's a CNV event with region_name matching "chr" followed by numbers:
+#'    - Creates two new rows with "p" and "q" suffixes
+#'    - Copies all other column values to both new rows
+#' 2. Otherwise keeps the original row unchanged
+#'
+#' @examples
+#' \dontrun{
+#' events <- data.frame(
+#'   event_type = c("CNV", "WGD", "CNV"),
+#'   region_name = c("chr1", "genome", "chr1p"),
+#'   CN_change = c(1, 0, -1),
+#'   stringsAsFactors = FALSE
+#' )
+#'
+#' processed <- process_cnv_events(events)
+#' # Returns:
+#' #   event_type region_name CN_change
+#' # 1      CNV       chr1p        1
+#' # 2      CNV       chr1q        1
+#' # 3      WGD      genome        0
+#' # 4      CNV       chr1p       -1
+#' }
+#'
+#' @export
 process_cnv_events <- function(event_table) {
   new_event_table <- event_table[0, ] # Initialize with the same structure but no rows
 
@@ -117,6 +163,65 @@ insert_event_at_positions <- function(event_table_x, event_table_y, insert_pos) 
   return(combined_table)
 }
 
+#' Create Edge Event Table from Event Table and Tree
+#'
+#' @description
+#' This function generates an edge event table by combining information from an event table
+#' and a tree structure. It creates a table that summarizes events associated with each edge
+#' in the tree, including event labels and the number of events per edge.
+#'
+#' @param event_table A data frame containing copy number events with columns:
+#'        \itemize{
+#'          \item parent: Parent node ID
+#'          \item child: Child node ID
+#'          \item haplotype: Haplotype information ("maternal" or "paternal")
+#'          \item region_name: Region identifier
+#'          \item CN_change: Copy number change value
+#'          \item Additional annotation columns as specified in anno_cols
+#'        }
+#' @param tree A phylogenetic tree object that can be converted to an edge list
+#'        using as_edgelist()
+#' @param anno_cols A character vector specifying which columns to use for creating
+#'        event labels. Default is c("haplotype_abbr", "region_name", "CN_change")
+#'
+#' @return A data frame summarizing events for each edge in the tree. The returned data frame
+#'   includes the following columns:
+#'   \itemize{
+#'     \item `edge_name`: A unique identifier for each edge, constructed as `parent_child`.
+#'     \item `edge_label`: A concatenated string of event labels for the edge, separated by newline characters.
+#'     \item `n_events`: The number of events associated with the edge.
+#'   }
+#'
+#' @details
+#' The function performs these steps:
+#' 1. Converts tree to edge list format
+#' 2. Creates abbreviated haplotype labels (M/P)
+#' 3. Combines annotation columns into event names
+#' 4. Groups events by edge
+#' 5. Creates multi-line labels for edges with multiple events
+#' 6. Orders results to match tree structure
+#'
+#' @note
+#' Event labels are formatted as "HAPLOTYPE:REGION:CN_CHANGE" by default.
+#' Multiple events on the same edge are separated by newlines.
+#'
+#' @examples
+#' \dontrun{
+#' events <- data.frame(
+#'   parent = c("A", "A"),
+#'   child = c("B", "C"),
+#'   haplotype = c("maternal", "paternal"),
+#'   region_name = c("chr1p", "chr2q"),
+#'   CN_change = c(1, -1)
+#' )
+#' tree <- your_tree_object  # Replace with actual tree
+#' edge_events <- create_edge_event_table(events, tree)
+#' }
+#'
+#' @importFrom dplyr %>% mutate group_by summarize arrange
+#' @importFrom rlang sym
+#' @importFrom igraph as_edgelist
+#' @export
 create_edge_event_table <- function(event_table, tree, anno_cols = c("haplotype_abbr", "region_name", "CN_change")) {
   tree_table <- data.frame(as_edgelist(tree))
   colnames(tree_table) <- c("parent", "child")

@@ -10,7 +10,8 @@ synth_clone_genome(
   nearest_clone,
   tree,
   seg_list,
-  mut_table
+  mut_table,
+  verbose = TRUE
 )
 }
 \arguments{

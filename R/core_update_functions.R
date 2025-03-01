@@ -1,7 +1,8 @@
-#' Update Simulation State Based on Event Table
+#' Update Simulation from Event Table
 #'
-#' @description
-#' Updates the simulation state by processing events (WGD, CNV, sub_CNV) along a phylogenetic tree structure.
+#' This function updates a simulation based on an event table, which contains information about
+#' genomic events such as Whole Genome Duplications (WGD), Copy Number Variations (CNV), and sub-CNVs.
+#' It traverses a tree structure and applies the events to the segments and chromosome lengths accordingly.
 #' Events are processed in depth-first search order from root to leaves.
 #'
 #' @param tree An igraph object representing the phylogenetic tree structure
@@ -23,11 +24,6 @@
 #'     \item all_node_segments - List of segment states for each node
 #'     \item all_node_chr_lengths - List of chromosome lengths for each node
 #'   }
-#'
-#' @details
-#' The function traverses the tree in depth-first search order, processing events sequentially.
-#' For each edge in the tree, it applies the corresponding events (WGD, CNV, sub_CNV)
-#' and updates the chromosome segments and lengths accordingly.
 #'
 #' @seealso
 #' \code{\link{update_wgd_seg}}, \code{\link{update_cnv_seg}}, \code{\link{update_sub_seg}}
