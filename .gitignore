@@ -9,6 +9,7 @@
 tutorials/*
 !tutorials/*.html
 !tutorials/tutorials_data_release_v1.zip
+!tutorials/cancerSimCraft_*.pdf
 
 # Mac specific
 .DS_Store

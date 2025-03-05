@@ -1,0 +1,35 @@
+url: ~
+template:
+  bootsrap: 5
+
+home:
+  sidebar: FALSE
+
+navbar:
+  right:
+    - text: "Vignettes"
+      menu:
+        - text: "Basic Clonal Simulation with Mini Genome"
+          href: articles/basic_clonal_simulation_mini_genome.html
+        - text: "Advanced 1: Chisel Data Preprocessing"
+          href: articles/advanced_1_chisel_data_preprocessing.html
+        - text: "Advanced 2: Pattern Extraction"
+          href: articles/advanced_2_pattern_extraction.html
+        - text: "Advanced 3: Genomic Region Mapping"
+          href: articles/advanced_3_genomic_region_mapping.html
+        - text: "Advanced 4: Simulation Setting"
+          href: articles/advanced_4_simulation_setting.html
+        - text: "Advanced 5: Build Backbone Genome with SNP"
+          href: articles/advanced_5_backbone_genome_with_snp.html
+        - text: "Advanced 6: Clonal-level Cancer Genome Simulation"
+          href: articles/advanced_6_clonal_level_cancer_genome_simulation.html
+        - text: "Advanced 7: Clonal-level Read Simulation"
+          href: articles/advanced_7_clonal_level_read_simulation.html
+        - text: "Advanced 8: Single-cell Dynamics Simulation Setting"
+          href: articles/advanced_8_dynamics_simulation.html
+        - text: "Advanced 9: Single-cell Dynamics Genome and Read Simulation"
+          href: articles/advanced_9_dynamics_genome_and_read_simulation.html
+    - text: "Cite"
+      href: CITATION.html
+    - text: "License"
+      href: LICENSE.html
