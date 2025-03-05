@@ -1,14 +1,12 @@
 
-
 # cancerSimCraft <img src="man/figures/logo.png" align="right" width="200" />
-
-## Overview
 
 <p align="center">
   <img src="man/figures/overview.png" width="800" />
 </p>
 
 
+## Overview
 `cancerSimCraft` is a powerful and flexible R package designed to simulate realistic cancer genomes at both clonal and single-cell resolution. It integrates deterministic rules with stochastic processes to model complex genomic events, including copy number variations (CNVs), single nucleotide variants (SNVs), and whole genome duplications (WGDs). By combining biological knowledge, real cancer genome data, and user-defined hypotheses, `cancerSimCraft` enables researchers to generate customizable simulations that reflect the intricacies of cancer evolution and heterogeneity.
 
 
@@ -20,7 +18,6 @@ Major applications of the `cancerSimCraft` package include:
 
 With its modular architecture, `cancerSimCraft` separates simulation design from execution, enabling efficient parameter exploration and high-throughput simulations. It also provides comprehensive ground truth tracking, documenting every genomic alteration and cellular event at both clonal and single-cell levels.
 
-***
 
 ## Key Features
 <p align="center">
@@ -53,7 +50,6 @@ With its modular architecture, `cancerSimCraft` separates simulation design from
   - **In silico experimentation** to explore cancer evolution and heterogeneity.
   - **Experimental design** and hypothesis validation.
 
-***
 
 ## Installation
 
