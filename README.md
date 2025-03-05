@@ -67,14 +67,14 @@ devtools::install_github("haijingjin/cancerSimCraft")
 
 cancerSimCraft provides **10 detailed vignettes** that guide users through the full functionality of the package. These vignettes are designed to help users understand and apply the package's capabilities, from basic simulations to advanced workflows. Each vignette provides step-by-step instructions, code examples, and explanations to help users learn to use the package's features. Whether you're new to cancerSimCraft or an advanced user, these vignettes will guide you through the process of designing, executing, and analyzing cancer genome simulations.
 
-To explore the vignettes interactively, visit the **cancerSimCraft website** at [provide url], where all tutorials are organized and easily accessible.
+To explore the vignettes interactively, visit the **cancerSimCraft website** at https://haijingjin.github.io/cancerSimCraft, where all tutorials are organized and easily accessible.
 
 For researchers who prefer to directly access the vignettes and associated data, all materials are available in the **/tutorials folder** of the main package repository. You can download the repository and navigate to the /tutorials folder to access the **vignettes and data files**
 
 
 ## Documentation
 
-For detailed documentation of all functions and parameters, refer to the **reference** page of the **cancerSimCraft website** at [provide url]. A PDF version of the package manual, named in the format `cancerSimCraft_<version>.pdf`, is available in the **/tutorials folder** of the main repository.
+For detailed documentation of all functions and parameters, refer to the **reference** page of the **cancerSimCraft website** at https://haijingjin.github.io/cancerSimCraft. A PDF version of the package manual, named in the format `cancerSimCraft_<version>.pdf`, is available in the **/tutorials folder** of the main repository.
 
 
 ## Citation
